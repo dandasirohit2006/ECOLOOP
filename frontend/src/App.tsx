@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { Navbar } from './components/Navbar';
@@ -25,12 +26,14 @@ import { ProfilePage } from './pages/ProfilePage';
 
 export const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <BrowserRouter>
-          <div className="flex flex-col min-h-screen">
-            <Navbar />
-            <main className="flex-1">
+    <ThemeProvider>
+      <AuthProvider>
+        <ToastProvider>
+          <BrowserRouter>
+            <div className="flex flex-col min-h-screen bg-[#F8FAF9] dark:bg-ecoDark-bg text-slate-800 dark:text-slate-100 transition-colors duration-300">
+              <Navbar />
+              <main className="flex-1">
+
               <Routes>
                 {/* Public Routes */}
                 <Route path="/" element={<HomePage />} />
@@ -124,6 +127,7 @@ export const App: React.FC = () => {
         </BrowserRouter>
       </ToastProvider>
     </AuthProvider>
+  </ThemeProvider>
   );
 };
 

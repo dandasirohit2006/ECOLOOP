@@ -4,9 +4,11 @@ import { Recycle, Mail, Phone, MapPin, ArrowUpRight, ShieldCheck, Leaf } from 'l
 
 export const Footer: React.FC = () => {
   return (
-    <footer className="bg-forest-950 text-slate-300 pt-16 pb-12 border-t border-emerald-900/40">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 pb-12 border-b border-emerald-900/60">
+    <footer className="bg-gradient-to-b from-[#041a10] via-[#02130b] to-[#010c07] text-slate-300 pt-16 pb-12 border-t border-emerald-500/20 relative overflow-hidden">
+      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent"></div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 pb-12 border-b border-emerald-900/40">
+
           {/* Brand info */}
           <div className="lg:col-span-2 space-y-4">
             <Link to="/" className="flex items-center gap-3">

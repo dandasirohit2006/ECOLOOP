@@ -13,6 +13,7 @@ import {
   AlertCircle,
   FileText,
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export const OrdersPage: React.FC = () => {
   const { user } = useAuth();
@@ -43,44 +44,44 @@ export const OrdersPage: React.FC = () => {
   }, [activeTab, role]);
 
   return (
-    <div className="min-h-screen bg-[#F8FAF9] py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#F8FAF9] dark:bg-ecoDark-bg py-8 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-ecoDark-card px-3 py-1 rounded-full border border-emerald-100 dark:border-emerald-500/20">
               Procurement & Fulfillment
             </span>
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 mt-2 tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mt-2 tracking-tight">
               Orders & Commercial Transactions
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
               Track freight status, simulated escrow clearances, and environmental savings receipts.
             </p>
           </div>
 
           {/* Role Filter toggle */}
-          <div className="flex bg-slate-100 p-1 rounded-xl self-start sm:self-auto text-xs font-bold">
+          <div className="flex bg-slate-100 dark:bg-ecoDark-surface p-1 rounded-xl self-start sm:self-auto text-xs font-bold border border-slate-200/60 dark:border-emerald-500/20">
             <button
               onClick={() => setRole('all')}
-              className={`px-3 py-1.5 rounded-lg transition-colors ${
-                role === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-900'
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                role === 'all' ? 'bg-white dark:bg-ecoDark-hover text-slate-900 dark:text-white shadow-2xs' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               All Trades
             </button>
             <button
               onClick={() => setRole('buyer')}
-              className={`px-3 py-1.5 rounded-lg transition-colors ${
-                role === 'buyer' ? 'bg-white text-emerald-800 shadow-2xs' : 'text-slate-500 hover:text-slate-900'
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                role === 'buyer' ? 'bg-white dark:bg-ecoDark-hover text-emerald-800 dark:text-emerald-400 shadow-2xs' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Purchases
             </button>
             <button
               onClick={() => setRole('seller')}
-              className={`px-3 py-1.5 rounded-lg transition-colors ${
-                role === 'seller' ? 'bg-white text-forest-800 shadow-2xs' : 'text-slate-500 hover:text-slate-900'
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                role === 'seller' ? 'bg-white dark:bg-ecoDark-hover text-emerald-800 dark:text-emerald-400 shadow-2xs' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Sales
@@ -89,7 +90,7 @@ export const OrdersPage: React.FC = () => {
         </div>
 
         {/* Status Tabs */}
-        <div className="flex gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
+        <div className="flex gap-2 border-b border-slate-200 dark:border-emerald-950/60 pb-2 overflow-x-auto">
           {[
             { id: 'ALL', label: 'All Shipments' },
             { id: 'ACTIVE', label: 'Active / In Transit' },
@@ -99,10 +100,10 @@ export const OrdersPage: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                 activeTab === tab.id
-                  ? 'bg-emerald-800 text-white shadow-xs'
-                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/60'
+                  ? 'bg-emerald-800 dark:bg-emerald-600 text-white shadow-xs'
+                  : 'bg-white dark:bg-ecoDark-surface text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-ecoDark-hover border border-slate-200/60 dark:border-emerald-500/20'
               }`}
             >
               {tab.label}
@@ -112,12 +113,12 @@ export const OrdersPage: React.FC = () => {
 
         {/* Orders List */}
         {loading ? (
-          <div className="py-20 text-center text-xs font-medium text-slate-400">Loading order records...</div>
+          <div className="py-20 text-center text-xs font-medium text-slate-400 dark:text-slate-500">Loading order records...</div>
         ) : orders.length === 0 ? (
-          <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-xs space-y-3">
-            <PackageCheck className="w-10 h-10 text-slate-300 mx-auto" />
-            <h3 className="font-bold text-base text-slate-800">No orders found in this view</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+          <div className="bg-white dark:bg-ecoDark-surface rounded-3xl p-12 text-center border border-slate-200/80 dark:border-emerald-500/20 shadow-xs space-y-3">
+            <PackageCheck className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto" />
+            <h3 className="font-bold text-base text-slate-800 dark:text-slate-200">No orders found in this view</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
               When purchase requests are accepted by sellers, transaction orders are automatically established here.
             </p>
           </div>
@@ -127,17 +128,19 @@ export const OrdersPage: React.FC = () => {
               const isBuyer = order.buyerId === user?.id;
 
               return (
-                <div
+                <motion.div
                   key={order.id}
-                  className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-card hover:border-emerald-200 transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-6"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-white dark:bg-ecoDark-surface rounded-2xl p-6 border border-slate-200/80 dark:border-emerald-500/20 shadow-card dark:shadow-glow-sm hover:border-emerald-300 dark:hover:border-emerald-500/40 transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-6"
                 >
                   {/* Left: Order Info */}
                   <div className="space-y-3 flex-1">
                     <div className="flex flex-wrap items-center gap-3">
-                      <span className="font-black text-sm text-slate-900 tracking-tight">
+                      <span className="font-black text-sm text-slate-900 dark:text-white tracking-tight">
                         Order #{order.orderNumber}
                       </span>
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-slate-400 dark:text-slate-500">
                         {new Date(order.createdAt).toLocaleDateString('en-IN', {
                           day: 'numeric',
                           month: 'short',
@@ -145,43 +148,43 @@ export const OrdersPage: React.FC = () => {
                         })}
                       </span>
                       <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold ${
-                        order.paymentStatus === 'PAID' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                        order.paymentStatus === 'PAID' ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300' : 'bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300'
                       }`}>
                         Payment: {order.paymentStatus}
                       </span>
                       <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold ${
-                        order.deliveryStatus === 'DELIVERED' ? 'bg-teal-100 text-teal-800' :
-                        order.deliveryStatus === 'IN_TRANSIT' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'
+                        order.deliveryStatus === 'DELIVERED' ? 'bg-teal-100 dark:bg-teal-950/50 text-teal-800 dark:text-teal-300' :
+                        order.deliveryStatus === 'IN_TRANSIT' ? 'bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-300' : 'bg-slate-100 dark:bg-ecoDark-card text-slate-700 dark:text-slate-300'
                       }`}>
                         Transit: {order.deliveryStatus}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-50 dark:bg-ecoDark-card p-3.5 rounded-xl border border-slate-100 dark:border-emerald-950/60">
                       <div>
-                        <span className="text-slate-400 block font-medium">Material Item</span>
-                        <span className="font-bold text-slate-900 truncate block mt-0.5">
+                        <span className="text-slate-400 dark:text-slate-500 block font-medium">Material Item</span>
+                        <span className="font-bold text-slate-900 dark:text-white truncate block mt-0.5">
                           {order.material?.title}
                         </span>
                       </div>
 
                       <div>
-                        <span className="text-slate-400 block font-medium">Quantity Volume</span>
-                        <span className="font-bold text-slate-800 block mt-0.5">
+                        <span className="text-slate-400 dark:text-slate-500 block font-medium">Quantity Volume</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200 block mt-0.5">
                           {order.quantity} {order.material?.unit}
                         </span>
                       </div>
 
                       <div>
-                        <span className="text-slate-400 block font-medium">Trade Partner</span>
-                        <span className="font-bold text-slate-800 block mt-0.5 truncate">
+                        <span className="text-slate-400 dark:text-slate-500 block font-medium">Trade Partner</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200 block mt-0.5 truncate">
                           {isBuyer ? `Seller: ${order.seller.businessName}` : `Buyer: ${order.buyer.businessName}`}
                         </span>
                       </div>
 
                       <div>
-                        <span className="text-slate-400 block font-medium">Total Transaction</span>
-                        <span className="font-black text-emerald-800 block mt-0.5 text-sm">
+                        <span className="text-slate-400 dark:text-slate-500 block font-medium">Total Transaction</span>
+                        <span className="font-black text-emerald-800 dark:text-emerald-400 block mt-0.5 text-sm">
                           ₹{order.totalAmount.toLocaleString('en-IN')}
                         </span>
                       </div>
@@ -194,7 +197,7 @@ export const OrdersPage: React.FC = () => {
                     {isBuyer && order.paymentStatus === 'PENDING' && (
                       <Link
                         to={`/checkout/${order.id}`}
-                        className="px-5 py-2.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-xs flex items-center justify-center gap-1.5"
+                        className="px-5 py-2.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white transition-colors shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <CreditCard className="w-4 h-4" />
                         <span>Pay ₹{order.totalAmount.toLocaleString('en-IN')} (Simulated)</span>
@@ -203,13 +206,13 @@ export const OrdersPage: React.FC = () => {
 
                     <Link
                       to={`/orders/${order.id}`}
-                      className="px-5 py-2.5 rounded-xl font-bold text-xs bg-forest-900 text-white hover:bg-forest-800 transition-colors flex items-center justify-center gap-1.5"
+                      className="px-5 py-2.5 rounded-xl font-bold text-xs bg-forest-900 dark:bg-emerald-600 text-white hover:bg-forest-800 dark:hover:bg-emerald-500 transition-colors flex items-center justify-center gap-1.5"
                     >
                       <FileText className="w-4 h-4" />
                       <span>Order Details & Invoice</span>
                     </Link>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
