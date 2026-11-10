@@ -1,0 +1,205 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id              String           @id @default(uuid())
+  email           String           @unique
+  password        String
+  businessName    String
+  contactPerson   String?
+  phone           String
+  city            String
+  address         String?
+  category        String           // e.g. "Manufacturing", "Packaging", "F&B", "Textiles", "Recycling", "Retail"
+  bio             String?
+  isVerified      Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  listings        MaterialListing[]
+  buyerRequests   MaterialRequest[] @relation("BuyerRequests")
+  sellerRequests  MaterialRequest[] @relation("SellerRequests")
+  buyerOrders     Order[]           @relation("BuyerOrders")
+  sellerOrders    Order[]           @relation("SellerOrders")
+  sentMessages    Message[]         @relation("SentMessages")
+  savedListings   SavedListing[]
+  notifications   Notification[]
+  preferences     BuyerPreference?
+}
+
+model BuyerPreference {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  preferredCategories String   // Comma separated e.g. "Paper/Cardboard,Plastic"
+  preferredCities     String   // Comma separated e.g. "Kolkata,Howrah"
+  maxBudget           Float?
+  typicalQuantity     Float?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model MaterialListing {
+  id               String            @id @default(uuid())
+  sellerId         String
+  seller           User              @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  category         String            // "Food waste", "Plastic", "Paper/Cardboard", "Glass", "Metal", "Wood", "Textile", "Construction materials", "Industrial scrap", "Furniture", "Business equipment", "Packaging materials"
+  title            String
+  description      String
+  quantity         Float
+  unit             String            // "kg", "tons", "pieces", "meters", "liters", "pallets"
+  pricePerUnit     Float             // in INR
+  condition        String            // "Clean / High Grade", "Recyclable / Unsorted", "Minor Defects", "Surplus / Unused", "Scrap"
+  locationCity     String            // "Kolkata", "Guwahati", "Siliguri", "Howrah", etc.
+  locationAddress  String
+  availability     String            // "Immediate", "Within 1 week", "Recurring Monthly", "Custom"
+  minOrderQuantity Float             @default(1)
+  status           String            @default("ACTIVE") // "ACTIVE", "RESERVED", "SOLD", "EXPIRED"
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  images           ListingImage[]
+  requests         MaterialRequest[]
+  orders           Order[]
+  savedBy          SavedListing[]
+}
+
+model ListingImage {
+  id        String          @id @default(uuid())
+  listingId String
+  listing   MaterialListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  url       String
+  isPrimary Boolean         @default(false)
+}
+
+model MaterialRequest {
+  id             String          @id @default(uuid())
+  materialId     String
+  material       MaterialListing @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  buyerId        String
+  buyer          User            @relation("BuyerRequests", fields: [buyerId], references: [id], onDelete: Cascade)
+  sellerId       String
+  seller         User            @relation("SellerRequests", fields: [sellerId], references: [id], onDelete: Cascade)
+  quantity       Float
+  offeredPrice   Float           // Price per unit or total offered
+  pickupMethod   String          // "Buyer pickup", "Seller delivery", "EcoLoop Logistics"
+  message        String
+  status         String          @default("PENDING") // "PENDING", "ACCEPTED", "DECLINED", "NEGOTIATING"
+  counterPrice   Float?
+  counterNotes   String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  orders         Order[]
+  conversation   Conversation?
+}
+
+model Conversation {
+  id             String           @id @default(uuid())
+  requestId      String?          @unique
+  request        MaterialRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  participant1Id String
+  participant2Id String
+  lastMessage    String?
+  lastMessageAt  DateTime         @default(now())
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  messages       Message[]
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  content        String
+  isNegotiation  Boolean      @default(false)
+  proposedPrice  Float?
+  isRead         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+}
+
+model Order {
+  id             String           @id @default(uuid())
+  orderNumber    String           @unique // e.g. "ECL-2026-8941"
+  requestId      String?
+  request        MaterialRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  materialId     String
+  material       MaterialListing  @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  buyerId        String
+  buyer          User             @relation("BuyerOrders", fields: [buyerId], references: [id], onDelete: Restrict)
+  sellerId       String
+  seller         User             @relation("SellerOrders", fields: [sellerId], references: [id], onDelete: Restrict)
+  quantity       Float
+  unitPrice      Float
+  baseAmount     Float
+  platformFee    Float            // e.g. 3% platform fee
+  logisticsFee   Float            // Calculated or flat rate
+  totalAmount    Float
+  pickupMethod   String
+  shippingAddress String?
+  paymentStatus  String           @default("PENDING") // "PENDING", "PAID", "REFUNDED"
+  deliveryStatus String           @default("PROCESSING") // "PROCESSING", "DISPATCHED", "IN_TRANSIT", "DELIVERED", "CANCELLED"
+  trackingNotes  String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  payment        Payment?
+  impactRecord   ImpactRecord?
+}
+
+model Payment {
+  id             String   @id @default(uuid())
+  orderId        String   @unique
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount         Float
+  paymentMethod  String   // "UPI", "CARD", "NETBANKING", "BANK_TRANSFER"
+  transactionRef String   // e.g. "TXN-UPI-98234190"
+  status         String   @default("SUCCESS")
+  paidAt         DateTime @default(now())
+}
+
+model SavedListing {
+  id        String          @id @default(uuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listingId String
+  listing   MaterialListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  createdAt DateTime        @default(now())
+
+  @@unique([userId, listingId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   // "REQUEST", "OFFER", "ORDER", "PAYMENT", "SYSTEM"
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model ImpactRecord {
+  id                  String   @id @default(uuid())
+  orderId             String?  @unique
+  order               Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  materialCategory    String
+  quantityKg          Float
+  co2SavedKg          Float
+  landfillDivertedKg  Float
+  waterSavedLiters    Float
+  treesEquivalent     Float
+  transactionValue    Float
+  recordedAt          DateTime @default(now())
+}

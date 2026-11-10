@@ -1,0 +1,360 @@
+import { Router, Response } from 'express';
+import { prisma } from '../prisma.js';
+import { requireAuth, optionalAuth, AuthRequest } from '../middleware/auth.js';
+import { calculateMatchScore } from '../services/matchingEngine.js';
+
+export const materialsRouter = Router();
+
+// GET all materials with filters, search, and optional AI match scoring
+materialsRouter.get('/', optionalAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const {
+      search,
+      category,
+      city,
+      condition,
+      minPrice,
+      maxPrice,
+      sort = 'newest',
+      status = 'ACTIVE',
+    } = req.query;
+
+    const where: any = {
+      status: String(status),
+    };
+
+    if (category && category !== 'All') {
+      where.category = String(category);
+    }
+
+    if (city && city !== 'All') {
+      where.locationCity = { contains: String(city) };
+    }
+
+    if (condition && condition !== 'All') {
+      where.condition = String(condition);
+    }
+
+    if (minPrice || maxPrice) {
+      where.pricePerUnit = {};
+      if (minPrice) where.pricePerUnit.gte = parseFloat(String(minPrice));
+      if (maxPrice) where.pricePerUnit.lte = parseFloat(String(maxPrice));
+    }
+
+    if (search) {
+      const q = String(search).trim();
+      where.OR = [
+        { title: { contains: q } },
+        { description: { contains: q } },
+        { category: { contains: q } },
+        { locationCity: { contains: q } },
+      ];
+    }
+
+    let orderBy: any = { createdAt: 'desc' };
+    if (sort === 'price_asc') orderBy = { pricePerUnit: 'asc' };
+    if (sort === 'price_desc') orderBy = { pricePerUnit: 'desc' };
+    if (sort === 'quantity_desc') orderBy = { quantity: 'desc' };
+
+    const listings = await prisma.materialListing.findMany({
+      where,
+      orderBy,
+      include: {
+        images: true,
+        seller: {
+          select: {
+            id: true,
+            businessName: true,
+            city: true,
+            category: true,
+            isVerified: true,
+          },
+        },
+      },
+    });
+
+    // If user is logged in, augment with AI match calculation
+    let enrichedListings = listings as any[];
+    if (req.user) {
+      const buyerPref = await prisma.buyerPreference.findUnique({
+        where: { userId: req.user.id },
+      });
+
+      const buyerData = {
+        id: req.user.id,
+        businessName: req.user.businessName,
+        category: req.user.category,
+        city: req.user.city,
+        preferredCategories: buyerPref?.preferredCategories ? buyerPref.preferredCategories.split(',').filter(Boolean) : [],
+        preferredCities: buyerPref?.preferredCities ? buyerPref.preferredCities.split(',').filter(Boolean) : [req.user.city],
+        maxBudget: buyerPref?.maxBudget ?? null,
+        typicalQuantity: buyerPref?.typicalQuantity ?? null,
+      };
+
+      enrichedListings = listings.map((item) => {
+        const match = calculateMatchScore(buyerData, item);
+        return {
+          ...item,
+          aiMatch: match,
+        };
+      });
+
+      if (sort === 'match') {
+        enrichedListings.sort((a, b) => (b.aiMatch?.matchPercentage || 0) - (a.aiMatch?.matchPercentage || 0));
+      }
+    }
+
+    res.json({
+      listings: enrichedListings,
+      total: enrichedListings.length,
+    });
+  } catch (error) {
+    console.error('Fetch materials error:', error);
+    res.status(500).json({ error: 'Failed to fetch material listings.' });
+  }
+});
+
+// GET seller's own listings
+materialsRouter.get('/seller/my-listings', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const listings = await prisma.materialListing.findMany({
+      where: { sellerId: req.user!.id },
+      include: {
+        images: true,
+        _count: {
+          select: {
+            requests: true,
+            orders: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({ listings });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch your listings.' });
+  }
+});
+
+// GET single material details
+materialsRouter.get('/:id', optionalAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const listing = await prisma.materialListing.findUnique({
+      where: { id: req.params.id },
+      include: {
+        images: true,
+        seller: {
+          select: {
+            id: true,
+            businessName: true,
+            city: true,
+            category: true,
+            address: true,
+            bio: true,
+            isVerified: true,
+            createdAt: true,
+            _count: {
+              select: { listings: true, sellerOrders: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!listing) {
+      res.status(404).json({ error: 'Material listing not found.' });
+      return;
+    }
+
+    let aiMatch = null;
+    if (req.user) {
+      const buyerPref = await prisma.buyerPreference.findUnique({
+        where: { userId: req.user.id },
+      });
+
+      const buyerData = {
+        id: req.user.id,
+        businessName: req.user.businessName,
+        category: req.user.category,
+        city: req.user.city,
+        preferredCategories: buyerPref?.preferredCategories ? buyerPref.preferredCategories.split(',').filter(Boolean) : [],
+        preferredCities: buyerPref?.preferredCities ? buyerPref.preferredCities.split(',').filter(Boolean) : [req.user.city],
+        maxBudget: buyerPref?.maxBudget ?? null,
+        typicalQuantity: buyerPref?.typicalQuantity ?? null,
+      };
+
+      aiMatch = calculateMatchScore(buyerData, listing);
+    }
+
+    // Also fetch 3 related materials in the same or complementary category
+    const related = await prisma.materialListing.findMany({
+      where: {
+        category: listing.category,
+        id: { not: listing.id },
+        status: 'ACTIVE',
+      },
+      take: 3,
+      include: { images: true },
+    });
+
+    res.json({
+      listing,
+      aiMatch,
+      related,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch material details.' });
+  }
+});
+
+// POST create a listing
+materialsRouter.post('/', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const {
+      category,
+      title,
+      description,
+      quantity,
+      unit,
+      pricePerUnit,
+      condition,
+      locationCity,
+      locationAddress,
+      availability,
+      minOrderQuantity,
+      images,
+    } = req.body;
+
+    if (!category || !title || !description || !quantity || !unit || pricePerUnit === undefined || !condition || !locationCity) {
+      res.status(400).json({ error: 'Please provide all required listing information.' });
+      return;
+    }
+
+    const listing = await prisma.materialListing.create({
+      data: {
+        sellerId: req.user!.id,
+        category: category.trim(),
+        title: title.trim(),
+        description: description.trim(),
+        quantity: parseFloat(quantity),
+        unit: unit.trim(),
+        pricePerUnit: parseFloat(pricePerUnit),
+        condition: condition.trim(),
+        locationCity: locationCity.trim(),
+        locationAddress: locationAddress ? locationAddress.trim() : `${locationCity.trim()}, India`,
+        availability: availability ? availability.trim() : 'Immediate',
+        minOrderQuantity: minOrderQuantity ? parseFloat(minOrderQuantity) : 1,
+        status: 'ACTIVE',
+        images: {
+          create: Array.isArray(images) && images.length > 0
+            ? images.map((img: string | { url: string; isPrimary?: boolean }, index: number) => ({
+                url: typeof img === 'string' ? img : img.url,
+                isPrimary: index === 0,
+              }))
+            : [{
+                url: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=800&q=80',
+                isPrimary: true,
+              }],
+        },
+      },
+      include: {
+        images: true,
+      },
+    });
+
+    // Notify seller of successful listing
+    await prisma.notification.create({
+      data: {
+        userId: req.user!.id,
+        title: 'Listing Published!',
+        message: `Your listing "${listing.title}" is now active on the EcoLoop marketplace.`,
+        type: 'SYSTEM',
+        link: `/materials/${listing.id}`,
+      },
+    });
+
+    res.status(201).json({
+      message: 'Waste listing created successfully and published to marketplace.',
+      listing,
+    });
+  } catch (error) {
+    console.error('Create listing error:', error);
+    res.status(500).json({ error: 'Failed to create material listing.' });
+  }
+});
+
+// PUT update listing
+materialsRouter.put('/:id', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const existing = await prisma.materialListing.findUnique({ where: { id: req.params.id } });
+    if (!existing) {
+      res.status(404).json({ error: 'Listing not found.' });
+      return;
+    }
+
+    if (existing.sellerId !== req.user!.id) {
+      res.status(403).json({ error: 'You are not authorized to edit this listing.' });
+      return;
+    }
+
+    const {
+      category,
+      title,
+      description,
+      quantity,
+      unit,
+      pricePerUnit,
+      condition,
+      locationCity,
+      locationAddress,
+      availability,
+      minOrderQuantity,
+      status,
+    } = req.body;
+
+    const updated = await prisma.materialListing.update({
+      where: { id: req.params.id },
+      data: {
+        category: category ?? existing.category,
+        title: title ?? existing.title,
+        description: description ?? existing.description,
+        quantity: quantity !== undefined ? parseFloat(quantity) : existing.quantity,
+        unit: unit ?? existing.unit,
+        pricePerUnit: pricePerUnit !== undefined ? parseFloat(pricePerUnit) : existing.pricePerUnit,
+        condition: condition ?? existing.condition,
+        locationCity: locationCity ?? existing.locationCity,
+        locationAddress: locationAddress ?? existing.locationAddress,
+        availability: availability ?? existing.availability,
+        minOrderQuantity: minOrderQuantity !== undefined ? parseFloat(minOrderQuantity) : existing.minOrderQuantity,
+        status: status ?? existing.status,
+      },
+      include: { images: true },
+    });
+
+    res.json({ message: 'Listing updated successfully.', listing: updated });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update listing.' });
+  }
+});
+
+// DELETE listing
+materialsRouter.delete('/:id', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const existing = await prisma.materialListing.findUnique({ where: { id: req.params.id } });
+    if (!existing) {
+      res.status(404).json({ error: 'Listing not found.' });
+      return;
+    }
+
+    if (existing.sellerId !== req.user!.id) {
+      res.status(403).json({ error: 'You are not authorized to delete this listing.' });
+      return;
+    }
+
+    await prisma.materialListing.delete({ where: { id: req.params.id } });
+    res.json({ message: 'Listing removed successfully.' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete listing.' });
+  }
+});
