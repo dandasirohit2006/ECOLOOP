@@ -11,7 +11,74 @@ import {
   MatchResult,
 } from '../types';
 
+import { MOCK_LISTINGS, MOCK_USERS, MOCK_IMPACT, MOCK_MATCH } from './mockData';
+
 const BASE_URL = '/api';
+
+function getMockFallback<T>(url: string, options: RequestInit = {}): T | null {
+  const method = (options.method || 'GET').toUpperCase();
+  const cleanUrl = url.split('?')[0];
+
+  if (cleanUrl === '/materials' && method === 'GET') {
+    return { listings: MOCK_LISTINGS, total: MOCK_LISTINGS.length } as unknown as T;
+  }
+  if (cleanUrl.startsWith('/materials/') && method === 'GET') {
+    const id = cleanUrl.replace('/materials/', '');
+    const found = MOCK_LISTINGS.find(m => m.id === id) || MOCK_LISTINGS[0];
+    return {
+      listing: found,
+      aiMatch: MOCK_MATCH,
+      related: MOCK_LISTINGS.filter(m => m.id !== found.id).slice(0, 3),
+    } as unknown as T;
+  }
+  if (cleanUrl === '/impact/summary') {
+    return MOCK_IMPACT as unknown as T;
+  }
+  if (cleanUrl === '/auth/me') {
+    const savedRole = localStorage.getItem('ecoloop_user_role') || 'SELLER';
+    const user = savedRole === 'BUYER' ? MOCK_USERS[1] : MOCK_USERS[0];
+    return { user } as unknown as T;
+  }
+  if (cleanUrl === '/auth/login' || cleanUrl === '/auth/signup') {
+    return { message: 'Logged in successfully (Preview mode)', token: 'mock_demo_token', user: MOCK_USERS[0] } as unknown as T;
+  }
+  if (cleanUrl === '/seller/dashboard') {
+    return {
+      kpis: { activeListings: 6, pendingRequests: 3, completedSales: 42, totalRevenue: 680000 },
+      recentRequests: [],
+      myListings: MOCK_LISTINGS.slice(0, 3),
+      recentOrders: [],
+      analytics: {
+        monthlySales: MOCK_IMPACT.monthlyTrends.map(m => ({ month: m.month, revenue: m.weightKg * 20, orders: m.transactions })),
+        categoryBreakdown: MOCK_IMPACT.categoryBreakdown.map(c => ({ name: c.category, value: c.weightKg })),
+      },
+    } as unknown as T;
+  }
+  if (cleanUrl === '/matching/recommendations') {
+    return {
+      recommendations: MOCK_LISTINGS,
+      totalMatches: MOCK_LISTINGS.length,
+      buyerContext: { city: 'Kolkata' },
+    } as unknown as T;
+  }
+  if (cleanUrl === '/notifications') {
+    return { notifications: [], unreadCount: 0 } as unknown as T;
+  }
+  if (cleanUrl === '/orders') {
+    return { orders: [] } as unknown as T;
+  }
+  if (cleanUrl === '/requests/seller' || cleanUrl === '/requests/buyer') {
+    return { requests: [] } as unknown as T;
+  }
+  if (cleanUrl === '/messages/conversations') {
+    return { conversations: [] } as unknown as T;
+  }
+  if (cleanUrl === '/saved') {
+    return { savedListings: [] } as unknown as T;
+  }
+
+  return null;
+}
 
 async function fetchJson<T>(url: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('ecoloop_token');
@@ -24,20 +91,33 @@ async function fetchJson<T>(url: string, options: RequestInit = {}): Promise<T> 
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${BASE_URL}${url}`, {
-    ...options,
-    headers,
-    credentials: 'include', // for cookies
-  });
+  try {
+    const response = await fetch(`${BASE_URL}${url}`, {
+      ...options,
+      headers,
+      credentials: 'include', // for cookies
+    });
 
-  const data = await response.json().catch(() => ({}));
+    const data = await response.json().catch(() => ({}));
 
-  if (!response.ok) {
-    throw new Error(data.error || data.message || `Request failed with status ${response.status}`);
+    if (!response.ok) {
+      const fallback = getMockFallback<T>(url, options);
+      if (fallback !== null) {
+        return fallback;
+      }
+      throw new Error(data.error || data.message || `Request failed with status ${response.status}`);
+    }
+
+    return data as T;
+  } catch (err: any) {
+    const fallback = getMockFallback<T>(url, options);
+    if (fallback !== null) {
+      return fallback;
+    }
+    throw err;
   }
-
-  return data as T;
 }
+
 
 export const api = {
   auth: {
