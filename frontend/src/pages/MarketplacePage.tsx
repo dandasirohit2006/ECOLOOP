@@ -67,9 +67,14 @@ export const MarketplacePage: React.FC = () => {
       if (maxPrice) params.maxPrice = maxPrice;
 
       const res = await api.materials.getAll(params);
-      setListings(res.listings);
+      if (res && Array.isArray(res.listings)) {
+        setListings(res.listings);
+      } else {
+        setListings([]);
+      }
     } catch (err) {
       console.error('Fetch marketplace listings error:', err);
+      setListings([]);
     } finally {
       setLoading(false);
     }
@@ -272,7 +277,7 @@ export const MarketplacePage: React.FC = () => {
             {/* Sorting bar & count */}
             <div className="bg-white dark:bg-ecoDark-surface rounded-2xl px-5 py-3 shadow-card border border-slate-200/80 dark:border-emerald-500/20 flex flex-wrap items-center justify-between gap-4 transition-colors duration-300">
               <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                Showing <span className="font-bold text-slate-900 dark:text-white">{listings.length}</span> listed waste materials
+                Showing <span className="font-bold text-slate-900 dark:text-white">{(listings || []).length}</span> listed waste materials
               </div>
 
               <div className="flex items-center gap-3">
@@ -298,7 +303,7 @@ export const MarketplacePage: React.FC = () => {
                   <div key={i} className="bg-white dark:bg-ecoDark-card rounded-2xl aspect-[4/5] animate-pulse border border-slate-100 dark:border-emerald-950/60" />
                 ))}
               </div>
-            ) : listings.length === 0 ? (
+            ) : (!listings || listings.length === 0) ? (
               <div className="bg-white dark:bg-ecoDark-card rounded-3xl p-12 text-center border border-slate-200/80 dark:border-emerald-500/20 shadow-xs space-y-4">
                 <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-ecoDark-surface text-slate-400 flex items-center justify-center mx-auto">
                   <PackageX className="w-8 h-8" />
@@ -309,14 +314,14 @@ export const MarketplacePage: React.FC = () => {
                 </p>
                 <button
                   onClick={clearFilters}
-                  className="px-5 py-2.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
+                  className="px-5 py-2.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white transition-colors cursor-pointer"
                 >
                   Reset All Filters
                 </button>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {listings.map((listing) => (
+                {(listings || []).map((listing) => (
                   <MarketplaceCard key={listing.id} listing={listing} />
                 ))}
               </div>

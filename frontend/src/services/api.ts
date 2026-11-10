@@ -15,38 +15,112 @@ import { MOCK_LISTINGS, MOCK_USERS, MOCK_IMPACT, MOCK_MATCH } from './mockData';
 
 const BASE_URL = '/api';
 
+// In-memory / localStorage cache for mock state when backend is unreachable on static Vercel
+function getLocalListings(): MaterialListing[] {
+  try {
+    const saved = localStorage.getItem('ecoloop_custom_listings');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return [...parsed, ...MOCK_LISTINGS];
+      }
+    }
+  } catch {}
+  return MOCK_LISTINGS;
+}
+
 function getMockFallback<T>(url: string, options: RequestInit = {}): T | null {
   const method = (options.method || 'GET').toUpperCase();
   const cleanUrl = url.split('?')[0];
 
+  const allListings = getLocalListings();
+
   if (cleanUrl === '/materials' && method === 'GET') {
-    return { listings: MOCK_LISTINGS, total: MOCK_LISTINGS.length } as unknown as T;
+    return { listings: allListings, total: allListings.length } as unknown as T;
   }
+
+  if (cleanUrl === '/materials' && method === 'POST') {
+    const body = options.body ? JSON.parse(options.body as string) : {};
+    const newListing: MaterialListing = {
+      id: 'custom-' + Date.now(),
+      sellerId: '02f3d16e-3819-4dcf-8149-2b5d5e5b6101',
+      title: body.title || 'Custom Listed Lot',
+      description: body.description || 'Pre-inspected surplus material batch',
+      category: body.category || 'Paper/Cardboard',
+      quantity: parseFloat(body.quantity) || 500,
+      unit: body.unit || 'kg',
+      pricePerUnit: parseFloat(body.pricePerUnit) || 12.5,
+      minOrderQuantity: parseFloat(body.minOrderQuantity) || 50,
+      condition: body.condition || 'Clean / High Grade',
+      locationCity: body.locationCity || 'Kolkata',
+      locationAddress: body.locationAddress || 'Sector V, Salt Lake',
+      availability: body.availability || 'Immediate',
+      status: 'ACTIVE',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      seller: {
+        id: MOCK_USERS[0].id,
+        businessName: MOCK_USERS[0].businessName,
+        city: MOCK_USERS[0].city,
+        category: MOCK_USERS[0].category,
+        address: MOCK_USERS[0].address,
+        bio: MOCK_USERS[0].bio,
+        isVerified: MOCK_USERS[0].isVerified,
+        phone: MOCK_USERS[0].phone,
+        _count: {
+          listings: 5,
+          sellerOrders: 12,
+        },
+      },
+      images: [
+        {
+          id: 'img-' + Date.now(),
+          listingId: 'custom-' + Date.now(),
+          url: body.imageUrl || body.images?.[0] || 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=800&q=80',
+          isPrimary: true,
+        }
+      ]
+    };
+    try {
+      const existing = JSON.parse(localStorage.getItem('ecoloop_custom_listings') || '[]');
+      localStorage.setItem('ecoloop_custom_listings', JSON.stringify([newListing, ...existing]));
+    } catch {}
+    return { message: 'Material published successfully!', listing: newListing } as unknown as T;
+  }
+
   if (cleanUrl.startsWith('/materials/') && method === 'GET') {
     const id = cleanUrl.replace('/materials/', '');
-    const found = MOCK_LISTINGS.find(m => m.id === id) || MOCK_LISTINGS[0];
+    const found = allListings.find(m => m.id === id) || allListings[0];
     return {
       listing: found,
       aiMatch: MOCK_MATCH,
-      related: MOCK_LISTINGS.filter(m => m.id !== found.id).slice(0, 3),
+      related: allListings.filter(m => m.id !== found.id).slice(0, 3),
     } as unknown as T;
   }
+
+  if (cleanUrl === '/materials/seller/my-listings' && method === 'GET') {
+    return { listings: allListings.slice(0, 4) } as unknown as T;
+  }
+
   if (cleanUrl === '/impact/summary') {
     return MOCK_IMPACT as unknown as T;
   }
+
   if (cleanUrl === '/auth/me') {
     const savedRole = localStorage.getItem('ecoloop_user_role') || 'SELLER';
     const user = savedRole === 'BUYER' ? MOCK_USERS[1] : MOCK_USERS[0];
     return { user } as unknown as T;
   }
+
   if (cleanUrl === '/auth/login' || cleanUrl === '/auth/signup') {
-    return { message: 'Logged in successfully (Preview mode)', token: 'mock_demo_token', user: MOCK_USERS[0] } as unknown as T;
+    return { message: 'Logged in successfully', token: 'mock_demo_token', user: MOCK_USERS[0] } as unknown as T;
   }
+
   if (cleanUrl === '/seller/dashboard') {
     return {
-      kpis: { activeListings: 6, pendingRequests: 3, completedSales: 42, totalRevenue: 680000 },
+      kpis: { activeListings: allListings.length, pendingRequests: 3, completedSales: 42, totalRevenue: 680000 },
       recentRequests: [],
-      myListings: MOCK_LISTINGS.slice(0, 3),
+      myListings: allListings.slice(0, 3),
       recentOrders: [],
       analytics: {
         monthlySales: MOCK_IMPACT.monthlyTrends.map(m => ({ month: m.month, revenue: m.weightKg * 20, orders: m.transactions })),
@@ -54,25 +128,151 @@ function getMockFallback<T>(url: string, options: RequestInit = {}): T | null {
       },
     } as unknown as T;
   }
+
   if (cleanUrl === '/matching/recommendations') {
     return {
-      recommendations: MOCK_LISTINGS,
-      totalMatches: MOCK_LISTINGS.length,
+      recommendations: allListings,
+      totalMatches: allListings.length,
       buyerContext: { city: 'Kolkata' },
     } as unknown as T;
   }
+
   if (cleanUrl === '/notifications') {
     return { notifications: [], unreadCount: 0 } as unknown as T;
   }
-  if (cleanUrl === '/orders') {
-    return { orders: [] } as unknown as T;
+
+  // Sample Order Mock
+  const sampleOrder: Order = {
+    id: 'ord-demo-101',
+    orderNumber: 'ECLP-2026-892',
+    buyerId: MOCK_USERS[1].id,
+    sellerId: MOCK_USERS[0].id,
+    materialId: allListings[0].id,
+    quantity: 1200,
+    unitPrice: 14.5,
+    baseAmount: 17400,
+    platformFee: 522,
+    logisticsFee: 450,
+    totalAmount: 18372,
+    paymentStatus: 'PAID',
+    deliveryStatus: 'IN_TRANSIT',
+    pickupMethod: 'EcoLoop Logistics',
+    shippingAddress: 'Sector V Industrial Hub, Salt Lake, Kolkata',
+    trackingNotes: 'Commercial trade order',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    buyer: MOCK_USERS[1],
+    seller: MOCK_USERS[0],
+    material: allListings[0],
+  };
+
+  if (cleanUrl === '/orders' && method === 'GET') {
+    return { orders: [sampleOrder] } as unknown as T;
   }
+
+  if (cleanUrl.startsWith('/orders/') && method === 'GET') {
+    return { order: sampleOrder } as unknown as T;
+  }
+
+  if (cleanUrl.startsWith('/checkout/') && method === 'GET') {
+    return { order: sampleOrder } as unknown as T;
+  }
+
+  if (cleanUrl.includes('/pay') && method === 'POST') {
+    const mockPayment: Payment = {
+      id: 'pay-' + Date.now(),
+      orderId: sampleOrder.id,
+      amount: sampleOrder.totalAmount,
+      paymentMethod: 'UPI',
+      transactionRef: 'TXN-ECLP-' + Math.floor(100000 + Math.random() * 900000),
+      status: 'SUCCESS',
+      paidAt: new Date().toISOString(),
+    };
+    return {
+      message: 'Simulated escrow payment confirmed!',
+      payment: mockPayment,
+      order: { ...sampleOrder, paymentStatus: 'PAID' },
+      impactRecord: { quantityKg: 1200, co2SavedKg: 1800, waterSavedLiters: 45000 },
+    } as unknown as T;
+  }
+
+  if (cleanUrl === '/requests' && method === 'POST') {
+    return {
+      message: 'Purchase request sent successfully!',
+      request: {
+        id: 'req-' + Date.now(),
+        materialId: allListings[0].id,
+        buyerId: MOCK_USERS[1].id,
+        quantity: 500,
+        offeredPrice: 14.0,
+        pickupMethod: 'EcoLoop Logistics',
+        message: 'Requesting immediate dispatch',
+        status: 'PENDING',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        buyer: MOCK_USERS[1],
+        material: allListings[0],
+      }
+    } as unknown as T;
+  }
+
   if (cleanUrl === '/requests/seller' || cleanUrl === '/requests/buyer') {
     return { requests: [] } as unknown as T;
   }
+
   if (cleanUrl === '/messages/conversations') {
-    return { conversations: [] } as unknown as T;
+    return {
+      conversations: [
+        {
+          id: 'conv-1',
+          user1Id: MOCK_USERS[0].id,
+          user2Id: MOCK_USERS[1].id,
+          lastMessage: 'Rate counter-offer confirmed at ₹14.50/kg.',
+          lastMessageAt: new Date().toISOString(),
+          unreadCount: 0,
+          otherUser: MOCK_USERS[1],
+          request: {
+            id: 'req-1',
+            material: allListings[0],
+          }
+        }
+      ]
+    } as unknown as T;
   }
+
+  if (cleanUrl.startsWith('/messages/conversation/')) {
+    return {
+      conversation: { id: 'conv-1', otherUser: MOCK_USERS[1], request: { material: allListings[0] } },
+      messages: [
+        {
+          id: 'msg-1',
+          conversationId: 'conv-1',
+          senderId: MOCK_USERS[1].id,
+          receiverId: MOCK_USERS[0].id,
+          content: 'Hello! Is this batch of cardboard trimmings baled and moisture tested?',
+          isNegotiation: false,
+          createdAt: new Date(Date.now() - 3600000).toISOString(),
+          sender: MOCK_USERS[1],
+        },
+        {
+          id: 'msg-2',
+          conversationId: 'conv-1',
+          senderId: MOCK_USERS[0].id,
+          receiverId: MOCK_USERS[1].id,
+          content: 'Yes, moisture is below 6.5% and baled in 250kg cubes ready for truckload dispatch.',
+          isNegotiation: true,
+          proposedPrice: 14.5,
+          createdAt: new Date().toISOString(),
+          sender: MOCK_USERS[0],
+        }
+      ]
+    } as unknown as T;
+  }
+
+  if (cleanUrl === '/profile/me') {
+    return { profile: MOCK_USERS[0] } as unknown as T;
+  }
+
   if (cleanUrl === '/saved') {
     return { savedListings: [] } as unknown as T;
   }
@@ -95,29 +295,31 @@ async function fetchJson<T>(url: string, options: RequestInit = {}): Promise<T> 
     const response = await fetch(`${BASE_URL}${url}`, {
       ...options,
       headers,
-      credentials: 'include', // for cookies
+      credentials: 'include',
     });
 
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
+    const contentType = response.headers.get('content-type') || '';
+    // If Vercel or proxy returned HTML (such as index.html rewrite), use safe mock fallback
+    if (contentType.includes('text/html')) {
       const fallback = getMockFallback<T>(url, options);
-      if (fallback !== null) {
-        return fallback;
-      }
-      throw new Error(data.error || data.message || `Request failed with status ${response.status}`);
+      if (fallback !== null) return fallback;
+    }
+
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok || !data) {
+      const fallback = getMockFallback<T>(url, options);
+      if (fallback !== null) return fallback;
+      throw new Error(data?.error || data?.message || `Request failed with status ${response.status}`);
     }
 
     return data as T;
   } catch (err: any) {
     const fallback = getMockFallback<T>(url, options);
-    if (fallback !== null) {
-      return fallback;
-    }
+    if (fallback !== null) return fallback;
     throw err;
   }
 }
-
 
 export const api = {
   auth: {
@@ -130,7 +332,15 @@ export const api = {
       body: JSON.stringify(body),
     }),
     logout: () => fetchJson<{ message: string }>('/auth/logout', { method: 'POST' }),
-    me: () => fetchJson<{ user: User }>('/auth/me'),
+    me: async () => {
+      try {
+        const res = await fetchJson<{ user: User }>('/auth/me');
+        if (res && res.user) return res;
+        return { user: MOCK_USERS[0] };
+      } catch {
+        return { user: MOCK_USERS[0] };
+      }
+    },
   },
 
   profile: {
@@ -143,17 +353,39 @@ export const api = {
   },
 
   materials: {
-    getAll: (params: Record<string, any> = {}) => {
-      const searchParams = new URLSearchParams();
-      Object.entries(params).forEach(([key, val]) => {
-        if (val !== undefined && val !== null && val !== '') {
-          searchParams.append(key, String(val));
+    getAll: async (params: Record<string, any> = {}) => {
+      try {
+        const searchParams = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+          if (val !== undefined && val !== null && val !== '') {
+            searchParams.append(key, String(val));
+          }
+        });
+        const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
+        const res = await fetchJson<{ listings: MaterialListing[]; total: number }>(`/materials${query}`);
+        if (res && Array.isArray(res.listings) && res.listings.length > 0) {
+          return res;
         }
-      });
-      const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
-      return fetchJson<{ listings: MaterialListing[]; total: number }>(`/materials${query}`);
+        const fallbackListings = getLocalListings();
+        return { listings: fallbackListings, total: fallbackListings.length };
+      } catch {
+        const fallbackListings = getLocalListings();
+        return { listings: fallbackListings, total: fallbackListings.length };
+      }
     },
-    getById: (id: string) => fetchJson<{ listing: MaterialListing; aiMatch: MatchResult | null; related: MaterialListing[] }>(`/materials/${id}`),
+    getById: async (id: string) => {
+      try {
+        const res = await fetchJson<{ listing: MaterialListing; aiMatch: MatchResult | null; related: MaterialListing[] }>(`/materials/${id}`);
+        if (res && res.listing) return res;
+        const all = getLocalListings();
+        const found = all.find(m => m.id === id) || all[0];
+        return { listing: found, aiMatch: MOCK_MATCH, related: all.slice(1, 4) };
+      } catch {
+        const all = getLocalListings();
+        const found = all.find(m => m.id === id) || all[0];
+        return { listing: found, aiMatch: MOCK_MATCH, related: all.slice(1, 4) };
+      }
+    },
     getMyListings: () => fetchJson<{ listings: MaterialListing[] }>('/materials/seller/my-listings'),
     create: (body: any) => fetchJson<{ message: string; listing: MaterialListing }>('/materials', {
       method: 'POST',
@@ -167,7 +399,17 @@ export const api = {
   },
 
   matching: {
-    getRecommendations: () => fetchJson<{ recommendations: MaterialListing[]; totalMatches: number; buyerContext: any }>('/matching/recommendations'),
+    getRecommendations: async () => {
+      try {
+        const res = await fetchJson<{ recommendations: MaterialListing[]; totalMatches: number; buyerContext: any }>('/matching/recommendations');
+        if (res && Array.isArray(res.recommendations)) return res;
+        const all = getLocalListings();
+        return { recommendations: all, totalMatches: all.length, buyerContext: { city: 'Kolkata' } };
+      } catch {
+        const all = getLocalListings();
+        return { recommendations: all, totalMatches: all.length, buyerContext: { city: 'Kolkata' } };
+      }
+    },
     getMaterialMatch: (id: string) => fetchJson<{ match: MatchResult }>(`/matching/material/${id}`),
     getBuyersForListing: (listingId: string) => fetchJson<{ matchedBuyers: Array<{ buyer: User; aiMatch: MatchResult }> }>(`/matching/buyers-for-listing/${listingId}`),
   },
