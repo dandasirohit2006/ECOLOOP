@@ -16,6 +16,9 @@ if "%GITHUB_TOKEN%"=="" (
     pause
     exit /b 1
 )
+set GITHUB_TOKEN=%GITHUB_TOKEN:"=%
+set GITHUB_TOKEN=%GITHUB_TOKEN: =%
+
 
 echo.
 echo Uploading EcoLoop commits and files to GitHub...
