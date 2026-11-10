@@ -9,5 +9,6 @@ npm-debug.log*
 .vscode
 .idea
 .git-bin
+.git_bin
 scratch
 
